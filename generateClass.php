@@ -1,4 +1,30 @@
 <?php
+/**
+ *  Copyright 2013 Native5. All Rights Reserved
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  You may not use this file except in compliance with the License.
+ *
+ *  You may obtain a copy of the License at
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *  or in the "license" file accompanying this file.
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *  PHP version 5.3+
+ *
+ * @category  Code Generation
+ * @author    Shamik Datta <shamik@native5.com>
+ * @copyright 2013 Native5. All Rights Reserved
+ * @license   See attached LICENSE for details
+ * @version   GIT: $gitid$
+ * @link      http://www.docs.native5.com
+ */
+require_once 'vendor/autoload.php';
+
 class GenerateConfig {
     const PARAM_PREFIX = '_';
     const TAB_CHARACTER = '    ';
@@ -149,21 +175,12 @@ class GeneratePHPClass {
     }
 }
 
-function printUsage() {
-    echo "Usage: php generateClass.php -c <yaml model definition file> [ -f ] [ -h ]".PHP_EOL;
-    echo "Options: Options can be specified in any order.".PHP_EOL;
-    echo "      -h                               : Print this help message".PHP_EOL;
-    echo "      -c <yaml class definition file > : configuration file containing model(s) description(s)".PHP_EOL;
-    echo "      -f                               : Force overwriting of existing file [Default: false]".PHP_EOL;
-    exit;
-}
-
-//xdebug_start_trace();
-
+// Read command line options
 $options = getopt("hfc:");
 if (isset($options['h']))
     printUsage();
-    
+
+// Check that a config file has been provided
 if (!isset($options['c']) || empty($options['c']) || !file_exists($options['c'])) {
     echo "Error: model definition file not passed or does not exist".PHP_EOL;
     printUsage();
@@ -171,8 +188,32 @@ if (!isset($options['c']) || empty($options['c']) || !file_exists($options['c'])
 
 $config = $options['c'];
 $overwrite = isset($options['f']) ? true : false;
+generate($config, $overwrite);
 
-foreach (yaml_parse_file($config) as $idx=>$class) {
-    $gen = new GeneratePHPClass($class);
-    $gen->generate($overwrite);
+// ****** Local Functions Follow ****** //
+
+function generate($configFile, $overwrite) {
+    $yaml = new \Symfony\Component\Yaml\Parser();
+    try {
+        $config = $yaml->parse(file_get_contents($configFile));
+    } catch (\Symfony\Component\Yaml\Exception\ParseException $e) {
+        printf("Unable to parse the YAML model definition file [ %s ]: %s", $configFile, $e->getMessage());
+    }
+
+    foreach ($config as $idx=>$class) {
+        $gen = new GeneratePHPClass($class);
+        $gen->generate($overwrite);
+    }
+
+    exit(0);
 }
+
+function printUsage() {
+    echo "Usage: php generateClass.php -c <yaml model definition file> [ -f ] [ -h ]".PHP_EOL;
+    echo "Options: Options can be specified in any order.".PHP_EOL;
+    echo "      -h                               : Print this help message".PHP_EOL;
+    echo "      -c <yaml class definition file > : configuration file containing model(s) description(s)".PHP_EOL;
+    echo "      -f                               : Force overwriting of existing file [Default: false]".PHP_EOL;
+    exit(1);
+}
+

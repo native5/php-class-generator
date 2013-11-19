@@ -1,0 +1,19 @@
+{   
+    "name"            : "native5/php-class-generator",
+    "description"     : "Simple PHP Getter/Setter class (model) generator",
+    "keywords"        : ["models", "code generation", "native5", "php"],
+    "homepage"        : "http://www.native5.com",
+    "license"         : "Apache License Version 2.0",
+    "authors"         : [
+        {
+            "name"    : "Shamik Datta",
+            "email"   : "shamik@native5.com"
+        }
+    ],
+    "support"        : {
+        "email"   : "support@native5.com"
+    },
+    "require" : {
+        "symfony/yaml": "*"
+    }
+}
