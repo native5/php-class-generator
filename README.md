@@ -1,4 +1,4 @@
-Simple Getter/Setter class (model) generator
+Simple PHP Getter/Setter class (model) generator
 ---
 
 ###Usage
