@@ -1,0 +1,7 @@
+*.swp
+logs/**
+.sass-cache/**
+vendor/**
+composer.lock
+tmp/**
+tags

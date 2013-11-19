@@ -1,0 +1,18 @@
+---
+- 
+    fqn: Org\PackageOne\ClassOne        # full qualified class name
+    props:                                          # list of class properties
+        - propOne                                       # regular property Name
+        - propTwo                                       # regular property Name
+        -                                               # non-regular property
+            type: boolean                                   # only boolean type properties are supported
+            prop: propBoolean                               # non-regular boolean property name
+- 
+    fqn: Org\PackageTwo\ClassTwo        # full qualified class name
+    construct:  propConstructor                     # single parameter that the constructor will take in 
+    props:                                          # list of class properties
+        - propOne                                       # regular property Name
+        - propTwo                                       # regular property Name
+        -                                               # non-regular property
+            fqn: Org\PackageThree\ClassThree                # fully qualified name for property - the setter class will only accept a param if of this type (php type hinting)
+            prop: propThree                                 # non-regular property name
