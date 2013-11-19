@@ -1,7 +1,7 @@
 Simple Getter/Setter class (model) generator
 ---
 
-##Usage
+###Usage
 ```
     php generateClass.php -c <yaml model definition file> [ -f ] [ -h ]
     Options: Options can be specified in any order
