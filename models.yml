@@ -1,0 +1,53 @@
+---
+# Api Token model & builder
+-
+    fqn: Native5\Console\Account\ApiToken
+    class-metadata:
+        builderClass: Native5\Console\Account\ApiToken\Builder
+    class-patterns:
+        - immutable
+    props:
+        - key
+        - secret
+# Api Token model builder
+-
+    fqn: Native5\Console\Account\ApiToken\Builder
+    class-metadata:
+        builtClass: Native5\Console\Account\ApiToken
+    class-patterns:
+        - builder
+    props:
+        - key
+        - secret
+ 
+##############################
+
+# Organization model & builder
+- 
+    fqn: Native5\Console\Account\Organization
+    class-metadata:
+        builderClass: Native5\Console\Account\Organization\Builder
+    class-patterns:
+        - immutable
+    construct: name         # For built objects this is used as the parameter to createBuilder method
+    props:                                
+        -   shortCode
+        -
+            type: boolean
+            prop: generated
+# Organization model builder
+-
+    fqn: Native5\Console\Account\Organization\Builder
+    class-metadata:
+        builtClass: Native5\Console\Account\Organization
+    class-patterns:
+        - builder
+    construct: name
+    props:
+        - shortCode
+        -
+            type: boolean
+            prop: generated
+
+################################
+...

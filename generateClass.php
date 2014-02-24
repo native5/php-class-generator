@@ -37,6 +37,12 @@ class GeneratePHPClass {
     private $_className;
     private $_path;
 
+    // Flags to implement different patterns
+    private $_immutable;
+    private $_builderClass;
+    private $_builder;
+    private $_builtClass;
+
     public function __construct($config) {
         if (empty($config) || !is_array($config))
             throw new Exception("Invalid class config received: ".print_r($config, 1));
@@ -45,13 +51,14 @@ class GeneratePHPClass {
             throw new Exception("Required class fully qualified name (fqn) and/or class properties (props) not present in configuration");
 
         $this->_config = $config;
+        $this->_extractClassDetails();
+
         // merge the constructor and properties
         if (!isset($this->_config['props']))
             $this->_config['props'] = array();
 
         if (isset($this->_config['construct']))
             array_unshift($this->_config['props'], $this->_config['construct']);
-        $this->_extractClassDetails();
     }
 
     public function generate($overwrite = false) {
@@ -81,27 +88,55 @@ class GeneratePHPClass {
     }
 
     private function _addConstructor() {
-        if (!isset($this->_config['construct']))
+        if (!isset($this->_config['construct']) && !$this->_immutable)
             return;
 
-        $prop = $this->_config['construct'];
+        $prop = $propFqn = '';
+        if (isset($this->_config['construct'])) {
+            $prop = $this->_config['construct'];
 
-        // Props might have an fqn
-        $propFqn = '';
-        if (is_array($prop)) {
-            if (isset($prop['fqn']) && !empty($prop['fqn']))
-                $propFqn = '\\'.$prop['fqn'].' ';
-            $prop = $prop['prop'];
+            // Props might have an fqn
+            if (is_array($prop)) {
+                if (isset($prop['fqn']) && !empty($prop['fqn']))
+                    $propFqn = '\\'.$prop['fqn'].' ';
+                $prop = $prop['prop'];
+            }
         }
 
-        $this->_class .= 
-            GenerateConfig::TAB_CHARACTER.
-                'public function __construct('.$propFqn.'$'.$prop.' = null) {'.PHP_EOL.
-            GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
-                    '$this->'.GenerateConfig::PARAM_PREFIX.$prop.' = $'.$prop.';'.PHP_EOL.
-            GenerateConfig::TAB_CHARACTER.
-                '}'.PHP_EOL.PHP_EOL;
+        if ($this->_immutable) {
+            $this->_class .= 
+                GenerateConfig::TAB_CHARACTER.
+                    'public function __construct(\\'.$this->_builderClass.' $builder) {'.PHP_EOL;
+            foreach ($this->_config['props'] as $idx=>$_prop) {
+                if (is_array($_prop))
+                    $_prop = $_prop['prop'];
+                $this->_class .= 
+                    GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
+                            '$this->'.GenerateConfig::PARAM_PREFIX.$_prop.' = $builder->get'.ucfirst($_prop).'();'.PHP_EOL;
+            }
+            $this->_class .= 
+                GenerateConfig::TAB_CHARACTER.
+                    '}'.PHP_EOL.PHP_EOL;
 
+            // For an immutable (built) object also generate the createBuilder method
+            $createBuilderParam = empty($prop) ? '' : (empty($propFqn) ? '' : $propFqn.' ').'$'.$prop.' = null';
+            $createBuilderArg = empty($prop) ? '' : '$'.$prop;
+            $this->_class .= 
+                GenerateConfig::TAB_CHARACTER.
+                    'public function createBuilder('.$createBuilderParam.') {'.PHP_EOL.
+                GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
+                        'return new \\'.$this->_builderClass.'('.$createBuilderArg.');'.PHP_EOL.
+                GenerateConfig::TAB_CHARACTER.
+                    '}'.PHP_EOL.PHP_EOL;
+        } else {
+            $this->_class .= 
+                GenerateConfig::TAB_CHARACTER.
+                    'public function __construct('.$propFqn.'$'.$prop.' = null) {'.PHP_EOL.
+                GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
+                        '$this->'.GenerateConfig::PARAM_PREFIX.$prop.' = $'.$prop.';'.PHP_EOL.
+                GenerateConfig::TAB_CHARACTER.
+                    '}'.PHP_EOL.PHP_EOL;
+        }
     }
 
     private function _addMethods() {
@@ -134,15 +169,33 @@ class GeneratePHPClass {
                     GenerateConfig::TAB_CHARACTER.
                         '}'.PHP_EOL.PHP_EOL;
 
-            // Setter method
-            $this->_class .= 
-                GenerateConfig::TAB_CHARACTER.
-                    'public function set'.ucfirst($prop).'('.$propFqn.'$'.$prop.') {'.PHP_EOL.
-                GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
-                        '$this->'.GenerateConfig::PARAM_PREFIX.$prop.' = $'.$prop.';'.PHP_EOL.
-                GenerateConfig::TAB_CHARACTER.
-                    '}'.PHP_EOL.PHP_EOL;
+            // Setter method - not for immutable objects
+            if (!$this->_immutable) {
+                $this->_class .= 
+                    GenerateConfig::TAB_CHARACTER.
+                        'public function set'.ucfirst($prop).'('.$propFqn.'$'.$prop.') {'.PHP_EOL.
+                    GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
+                            '$this->'.GenerateConfig::PARAM_PREFIX.$prop.' = $'.$prop.';'.PHP_EOL;
+                if ($this->_builder)
+                    $this->_class .=
+                        GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
+                                'return $this;'.PHP_EOL;
+                $this->_class .=
+                    GenerateConfig::TAB_CHARACTER.
+                        '}'.PHP_EOL.PHP_EOL;
+            }
         }
+
+        // Add the build method for a builder
+        if ($this->_builder)
+                $this->_class .= 
+                    GenerateConfig::TAB_CHARACTER.
+                        'public function build() {'.PHP_EOL.
+                    GenerateConfig::TAB_CHARACTER.GenerateConfig::TAB_CHARACTER.
+                            'return new \\'.$this->_builtClass.'($this);'.PHP_EOL.
+                    GenerateConfig::TAB_CHARACTER.
+                        '}'.PHP_EOL.PHP_EOL;
+            
     }
 
     private function _closeClass() {
@@ -172,6 +225,34 @@ class GeneratePHPClass {
             }
         }
         $this->_namespace = rtrim($this->_namespace, '\\');
+
+        $this->_readClassPatterns();
+    }
+
+    private function _readClassPatterns() {
+        if (empty($this->_config['class-patterns']))
+            return;
+
+        foreach ($this->_config['class-patterns'] as $idx=>$name) {
+            switch ($name) {
+                case "immutable":
+                    // Check that the builder is defined under class-metadata
+                    if (!isset($this->_config['class-metadata']['builderClass']))
+                        throw new \Exception("Need class-metadata > builder defined for an immutable built pattern");
+                    $this->_immutable = true;
+                    $this->_builderClass = $this->_config['class-metadata']['builderClass'];
+                    break;
+                case "builder":
+                    // Check that the builtClass is defined under class-metadata
+                    if (!isset($this->_config['class-metadata']['builtClass']))
+                        throw new \Exception("Need class-metadata > builtClass defined for the builder pattern");
+                    $this->_builder = true;
+                    $this->_builtClass = $this->_config['class-metadata']['builtClass'];
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 }
 
